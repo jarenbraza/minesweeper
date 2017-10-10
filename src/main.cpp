@@ -11,34 +11,54 @@ void generateGame(int, int, int, grid&, grid&);
 void revealVacant(int, int, grid&, grid&);
 
 int main() {
-	sf::RenderWindow game(sf::VideoMode(400, 400), "Minesweeper");
-
-	int DIFFICULTY = 5;
-	int rows = 10, cols = 10;
-	int width = 32, height = 32; // Values based on texture dimensions
-	grid gameGrid(rows + 2, std::vector<int>(cols + 2));
+	// Define game variables
+	int DIFFICULTY = 7; // Constant for how often bombs appear each game
+	int scale = 32; // Length of square texture
+	int rows = 12, cols = 12; // Game grid rows
+	bool drawResetText = false;
+	grid gameGrid(rows + 2, std::vector<int>(cols + 2)); // Excess of two to account for borders
 	grid displayGrid(rows + 2, std::vector<int>(cols + 2));
+
+	// Formatting window
+	sf::RenderWindow game(sf::VideoMode((cols + 2) * 32, (rows + 4) * 32), "Minesweeper");
+	game.setFramerateLimit(20);	// 20 frames per second
 
 	// Load textures
 	sf::Texture t;
-	t.loadFromFile("tiles.jpg");
+	t.loadFromFile("resources/tiles.jpg");
 	sf::Sprite tile(t);
 
+	// Load text
+	sf::Font font;
+	font.loadFromFile("resources/arial.ttf");
+	sf::Text text(sf::String("Press R to reset game"), font, 20);
+	text.setFillColor(sf::Color::Black);
+	text.setPosition(sf::Vector2f(
+		game.getSize().x / 2.0f - text.getLocalBounds().width / 2,	// Center horizontally
+		(rows + 2) * 32));
+
+	// Generate initial game
 	generateGame(DIFFICULTY, rows, cols, displayGrid, gameGrid);
 
+	// Game Loop
 	while (game.isOpen()) {
 		sf::Vector2i position = sf::Mouse::getPosition(game);
-		int mouseX = position.x / width, mouseY = position.y / height;
+		int mouseX = position.x / scale, mouseY = position.y / scale;
+		bool inGrid = true;
 
 		// Resolve out of bounds
-		if (mouseX < 1 || mouseY < 1 || mouseX > rows + 1 || mouseY > cols + 1)
-			continue;
+		if (mouseX < 1 || mouseY < 1 || mouseX > rows || mouseY > cols)
+			inGrid = false;
 
+		// Catch user action
 		sf::Event e;
 		while (game.pollEvent(e)) {
 			if (e.type == sf::Event::Closed) game.close();
 
 			if (e.type == sf::Event::MouseButtonPressed) {
+				if (!inGrid)
+					continue;
+
 				// Reveal an unflagged tile on left click; Chain reveal vacant locations
 				if (e.key.code == sf::Mouse::Left) {
 					if (displayGrid[mouseX][mouseY] != FLAG) {
@@ -60,22 +80,28 @@ int main() {
 			}
 
 			// Generate a new game if R is pressed
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::R)) {
+				drawResetText = false;
 				generateGame(DIFFICULTY, rows, cols, displayGrid, gameGrid);
+			}
 		}
 
-		game.clear(sf::Color::White);
+		game.clear(sf::Color(200, 200, 200));	// Set board background to grey
 
+		// Draw the game
 		for (int i = 1; i <= rows; i++) {
 			for (int j = 1; j <= cols; j++) {
-				if (displayGrid[mouseX][mouseY] == MINE) // If mine was revealed
+				if (inGrid && displayGrid[mouseX][mouseY] == MINE) { // If mine was revealed
 					displayGrid[i][j] = gameGrid[i][j];
-				tile.setTextureRect(sf::IntRect(displayGrid[i][j] * width, 0, width, height));
-				tile.setPosition(i * width, j * height);
+					drawResetText = true;
+				}
+				tile.setTextureRect(sf::IntRect(displayGrid[i][j] * scale, 0, scale, scale));
+				tile.setPosition(i * scale, j * scale);
 				game.draw(tile);
 			}
 		}
 
+		if (drawResetText) game.draw(text);
 		game.display();
 	}
 
